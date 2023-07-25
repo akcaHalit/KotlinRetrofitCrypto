@@ -11,8 +11,12 @@ import com.halitakca.kotlinretrofitkriptopara.service.CryptoAPI
 import retrofit2.Callback
 import retrofit2.Call
 import com.halitakca.kotlinretrofitkriptopara.adapter.RecyclerViewAdapter
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.schedulers.Schedulers
 import retrofit2.Response
 import retrofit2.Retrofit
+import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
 import retrofit2.converter.gson.GsonConverterFactory
 
 
@@ -22,6 +26,8 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener{
     private val BASE_URL = "https://raw.githubusercontent.com/"
     private var cryptoModels : ArrayList<CryptoModel>? = null
     private var recyclerViewAdapter : RecyclerViewAdapter? = null
+
+    private var compositeDisposable : CompositeDisposable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +40,7 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener{
         binding.recyclerView.layoutManager = layoutManager
 
 
+        compositeDisposable = CompositeDisposable()
 
         loadData()
 
@@ -41,6 +48,27 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener{
     }
 
     private fun loadData() {
+
+
+        val retrofit = Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+            .build().create(CryptoAPI::class.java)
+        // Service'i de burada verdik direkt.
+
+
+        compositeDisposable?.add(retrofit.getData()
+            .subscribeOn(Schedulers.io())   // Main Thread'e girmeden Arka Plan'da çalış.
+            .observeOn(AndroidSchedulers.mainThread())  // Verileri Main Thread'de işleyeceğiz.
+            .subscribe(this::handleResponse))
+
+
+
+
+
+
+        /*
         val retrofit = Retrofit.Builder().baseUrl(BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -50,30 +78,7 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener{
         val call = service.getData()
 
 
-        /*
-        service.getData().enqueue(object : Callback<CryptoModel> {
-
-            override fun onResponse(call: Call<CryptoModel>, response: Response<CryptoModel>) {
-                if (response.isSuccessful) {
-                    val data = response.body() // API'den dönen verileri burada alırsınız.
-                    // Yapılacak işlemler
-                } else {
-                    // Hatalı durumda yapılacak işlemler
-                }
-            }
-
-            override fun onFailure(call: Call<CryptoModel>, t: Throwable) {
-                // Hata durumunda yapılacak işlemler
-            }
-        })
-
-
-         */
-        println("SERVİCE SONRASI")
-
-
-
-        call.enqueue(object: Callback<List<CryptoModel>> {
+         call.enqueue(object: Callback<List<CryptoModel>> {
             override fun onFailure(call: Call<List<CryptoModel>>, t: Throwable) {
                 t.printStackTrace()
             }
@@ -102,34 +107,22 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener{
                     }
                 }
 
-
-
-                    /*
-                    val data = response.body()
-                    println("SUCCESSFULL")
-                    if(data != null){
-                        for(cryptoModel : CryptoModel in data){
-                            val price = cryptoModel.price
-                            val currency = cryptoModel.currency
-
-                            val crypto = CryptoModel(price,currency)
-                            cryptoModels!!.add(crypto)
-                        }
-                        println(cryptoModels)
-
-                        print(data)
-                        println("DATA")
-                    }else{
-                        println("NULL")
-                    }
-                     */
-
             }
         })
 
+         */
 
 
+    }
 
+
+    private fun handleResponse(cryptoList : List<CryptoModel>){
+        cryptoModels = ArrayList(cryptoList)
+
+        cryptoModels?.let {
+            recyclerViewAdapter = RecyclerViewAdapter(cryptoModels!!, this@MainActivity)
+            binding.recyclerView.adapter = recyclerViewAdapter
+        }
     }
 
     override fun onItemClick(cryptoModel: CryptoModel) {
